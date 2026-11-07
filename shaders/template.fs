@@ -1,23 +1,26 @@
 #version 330 core
 
-uniform sampler2D tex_2d;
-uniform vec4 color;
-
-in vec3 vert_col;
-in vec2 vert_tex;
+uniform vec2 show_size;
+uniform vec2 shift;
+uniform vec3 params;
+uniform float boldness;
 
 out vec4 out_col;
 
+float func(float x) {
+        return params.x * x * x + params.y * x + params.z;
+}
+
 void main() {
-        // Y-координата у формата jpg перевернута относительно OpenGL
-        vec4 texel = texture(tex_2d, vec2(vert_tex.x, 1.0 - vert_tex.y));
+        vec3 col_a = vec3(1.0, 0.0, 0.0);
+        vec3 col_b = vec3(0, 0, 0);
+        vec2 resolution = vec2(640.0, 480.0);
 
-        // https://ru.wikipedia.org/wiki/Оттенки_серого
-        float greyscale_factor = dot(texel.rgb, vec3(0.21, 0.71, 0.07));
-        vec3 semi_greyscale = mix(vec3(greyscale_factor), vert_col.rgb, 0.7f);
+        vec2 uv = gl_FragCoord.xy * show_size / resolution + shift;
 
-        // Анимированный цвет из uniform
-        vec3 animated_color = mix(color.rgb, semi_greyscale, 0.7f);
-
-        out_col = vec4(animated_color, 1.0);
+        if (abs(func(uv.x) - uv.y) < boldness) {
+                out_col = vec4(col_a, 1.0);
+        } else {
+                out_col = vec4(col_b, 1.0);
+        }
 }

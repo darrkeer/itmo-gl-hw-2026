@@ -1,13 +1,22 @@
 #include "window.h"
 
 #include <QLabel>
+#include <qnamespace.h>
+#include <qslider.h>
+#include <qvectornd.h>
+#include <QSlider>
 
-constexpr std::array<GLfloat, 21u> vertices = {
-    0.0f, 0.5f, 1.f,  0.f,  0.f,   0.5f, 1.0f, -0.5f, -0.5f, 0.f,  1.f,
-    0.f,  0.0f, 0.0f, 0.5f, -0.5f, 0.f,  0.f,  1.f,   1.0f,  0.0f,
+constexpr std::array<GLfloat, 8u> vertices = {
+    -1.0f,   1.0f,
+    -1.0f, -1.0f,
+    1.0f,-1.0f,
+    1.0f, 1.0f
 };
 
-constexpr std::array<GLuint, 3u> indices = {0, 1, 2};
+constexpr std::array<GLuint, 6u> indices = {
+    0, 1, 2,
+    0, 2, 3
+};
 
 Window::Window()
 {
@@ -19,15 +28,21 @@ Window::Window()
     fpsLabel->move(0, 0);
     fpsLabel->raise();
 
+    boldness_slider = create_slider("Change boldness:", 0, 30);
+    param_a_slider = create_slider("A parameter:", 0, 80);
+    param_b_slider = create_slider("B parameter:", 0, 130);
+    param_c_slider = create_slider("C parameter:", 0, 180);
+
     connect(this, &Window::fpsUpdated, [fpsLabel](double fps) {
         fpsLabel->setText(QString("FPS: %1").arg(fps, 0, 'f', 0));
         fpsLabel->adjustSize();
     });
+
+    recalc_show_y();
 }
 
 Window::~Window()
 {
-    texture_.reset();
     program_.reset();
 }
 
@@ -42,16 +57,12 @@ void Window::onInit()
     }
     program_->bind();
 
-    // Configure textures
-    texture_ = std::make_unique<QOpenGLTexture>(QImage(":/textures/cat.jpg"));
-    texture_->setMinMagFilters(QOpenGLTexture::Linear, QOpenGLTexture::Linear);
-    texture_->setWrapMode(QOpenGLTexture::WrapMode::Repeat);
-    program_->setUniformValue("tex_2d", 0);
-
     // Configure uniforms
     mvpUniform_ = program_->uniformLocation("mvp");
-    colorUniform_ = program_->uniformLocation("color");
-    program_->setUniformValue(colorUniform_, QColor::fromHsv(0, 0, 255));
+    show_size_uniform = program_->uniformLocation("show_size");
+    shift_uniform = program_->uniformLocation("shift");
+    params_uniform = program_->uniformLocation("params");  
+    boldness_uniform = program_->uniformLocation("boldness");
 
     // Create VAO object
     vao_.create();
@@ -71,21 +82,7 @@ void Window::onInit()
 
     // Bind attributes
     program_->enableAttributeArray(0);
-    program_->setAttributeBuffer(0, GL_FLOAT, 0, 2, static_cast<int>(7 * sizeof(GLfloat)));
-
-    program_->enableAttributeArray(1);
-    program_->setAttributeBuffer(1,
-                                 GL_FLOAT,
-                                 static_cast<int>(2 * sizeof(GLfloat)),
-                                 3,
-                                 static_cast<int>(7 * sizeof(GLfloat)));
-
-    program_->enableAttributeArray(2);
-    program_->setAttributeBuffer(2,
-                                 GL_FLOAT,
-                                 static_cast<int>(5 * sizeof(GLfloat)),
-                                 2,
-                                 static_cast<int>(7 * sizeof(GLfloat)));
+    program_->setAttributeBuffer(0, GL_FLOAT, 0, 2, static_cast<int>(2 * sizeof(GLfloat)));
 
     // Release all
     program_->release();
@@ -120,27 +117,25 @@ void Window::onRender()
 
     // Update uniform values
     program_->setUniformValue(mvpUniform_, mvp);
-
-    if (animated_ && сolorAnimated_) {
-        const float dt = timer_.restart() / 1000.0f;
-        hue_ = std::fmod(hue_ + dt * (60.0f / 360.0f), 1.0f);
-        program_->setUniformValue(colorUniform_, QColor::fromHsvF(hue_, 1.0, 1.0));
-    }
-
-    // Add textures
-    glActiveTexture(GL_TEXTURE0);
-    texture_->bind();
+    program_->setUniformValue(show_size_uniform, QVector2D(show_size_x, show_size_y));
+    program_->setUniformValue(shift_uniform, QVector2D(shift_x, shift_y));
+    auto params = QVector3D(
+        get_slider_value(param_a_slider),
+        get_slider_value(param_b_slider),
+        get_slider_value(param_c_slider)
+    );
+    program_->setUniformValue(params_uniform, params);
+    program_->setUniformValue(boldness_uniform, get_slider_value(boldness_slider));
 
     // Bind VAO
     vao_.bind();
 
     // Draw
-    glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_INT, nullptr);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
     // Release all
     vao_.release();
     program_->release();
-    texture_->release();
 
     if (animated_)
         update();
@@ -158,4 +153,61 @@ void Window::onResize(const size_t width, const size_t height)
     const auto fov = 60.0f;
     projection_.setToIdentity();
     projection_.perspective(fov, aspect, zNear, zFar);
+
+    recalc_show_y();
+}
+
+void Window::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        mouse_pressed = true;
+        last_mouse_pos = event->pos();
+    }
+}
+
+void Window::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton) {
+        mouse_pressed = false;
+    }
+}
+
+void Window::mouseMoveEvent(QMouseEvent *event) {
+    if (mouse_pressed) {
+        auto delta = event->pos() - last_mouse_pos;
+        shift_x -= delta.x() * show_size_x / size().width();
+        shift_y += delta.y() * show_size_y / size().height();
+
+    }
+    last_mouse_pos = event->pos();
+}
+
+void Window::wheelEvent(QWheelEvent *event) {
+    auto delta = static_cast<float>(event->angleDelta().y()) / SCROLL_SPEED;
+    show_size_x = std::max(MIN_SHOW_X, show_size_x - delta);
+    recalc_show_y();
+}
+
+void Window::recalc_show_y() {
+    show_size_y = show_size_x * size().height() / size().width();
+}
+
+QSlider* Window::create_slider(const std::string& label, int pos_x, int pos_y) {
+    auto* l = new QLabel(label.c_str(), this);
+    l->setStyleSheet("QLabel { color: white; }");
+    l->setAttribute(Qt::WA_TransparentForMouseEvents);
+    l->adjustSize();
+    l->move(pos_x, pos_y);
+    l->raise();
+
+    auto *slider = new QSlider(Qt::Horizontal, this);
+    slider->resize(100, 30);
+    slider->move(pos_x, pos_y + 15);
+    slider->setRange(0, 100);
+    slider->setValue(50);
+    slider->show();
+
+    return slider;
+}
+
+float Window::get_slider_value(QSlider* slider, float min, float max) {
+    return (slider->value() - min) / (max - min);
 }
