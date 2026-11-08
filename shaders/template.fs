@@ -4,6 +4,7 @@ uniform vec2 show_size;
 uniform vec2 shift;
 uniform vec3 params;
 uniform float boldness;
+uniform vec2 resolution;
 
 out vec4 out_col;
 
@@ -14,7 +15,6 @@ float func(float x) {
 void main() {
         vec3 col_a = vec3(1.0, 0.0, 0.0);
         vec3 col_b = vec3(0, 0, 0);
-        vec2 resolution = vec2(640.0, 480.0);
 
         vec2 uv = gl_FragCoord.xy * show_size / resolution + shift;
 

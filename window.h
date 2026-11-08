@@ -57,6 +57,7 @@ private:
     GLint shift_uniform = -1;
     GLint params_uniform = -1;
     GLint boldness_uniform = -1;
+    GLint resolution_uniform = -1;
 
     QMatrix4x4 model_;
     QMatrix4x4 view_;

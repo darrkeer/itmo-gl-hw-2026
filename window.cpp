@@ -63,6 +63,7 @@ void Window::onInit()
     shift_uniform = program_->uniformLocation("shift");
     params_uniform = program_->uniformLocation("params");  
     boldness_uniform = program_->uniformLocation("boldness");
+    resolution_uniform = program_->uniformLocation("resolution");
 
     // Create VAO object
     vao_.create();
@@ -126,6 +127,7 @@ void Window::onRender()
     );
     program_->setUniformValue(params_uniform, params);
     program_->setUniformValue(boldness_uniform, get_slider_value(boldness_slider));
+    program_->setUniformValue(resolution_uniform, QVector2D(width(), height()));
 
     // Bind VAO
     vao_.bind();
@@ -182,8 +184,18 @@ void Window::mouseMoveEvent(QMouseEvent *event) {
 
 void Window::wheelEvent(QWheelEvent *event) {
     auto delta = static_cast<float>(event->angleDelta().y()) / SCROLL_SPEED;
+    
+    float old_x = show_size_x;
+    float old_y = show_size_y;
+
     show_size_x = std::max(MIN_SHOW_X, show_size_x - delta);
     recalc_show_y();
+
+    auto u = event->position().x() / width();
+    auto v = 1. - event->position().y() / height();
+    
+    shift_x += (old_x - show_size_x) * u;
+    shift_y += (old_y - show_size_y) * v;
 }
 
 void Window::recalc_show_y() {
