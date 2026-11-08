@@ -2,6 +2,7 @@
 
 #include <QLabel>
 #include <qnamespace.h>
+#include <qobject.h>
 #include <qslider.h>
 #include <qvectornd.h>
 #include <QSlider>
@@ -18,8 +19,10 @@ constexpr std::array<GLuint, 6u> indices = {
     0, 2, 3
 };
 
-Window::Window()
+Window::Window(QString _program)
 {
+    shader_name = _program;
+
     // Add label for FPS
     auto* fpsLabel = new QLabel("FPS: 0", this);
     fpsLabel->setStyleSheet("QLabel { color: white; }");
@@ -27,11 +30,16 @@ Window::Window()
     fpsLabel->adjustSize();
     fpsLabel->move(0, 0);
     fpsLabel->raise();
-
-    boldness_slider = create_slider("Change boldness:", 0, 30);
-    param_a_slider = create_slider("A parameter:", 0, 80);
-    param_b_slider = create_slider("B parameter:", 0, 130);
-    param_c_slider = create_slider("C parameter:", 0, 180);
+    
+    if (shader_name == "func") {   
+        boldness_slider = create_slider("Change boldness:", 0, 30);
+        param_a_slider = create_slider("A parameter:", 0, 80);
+        param_b_slider = create_slider("B parameter:", 0, 130);
+        param_c_slider = create_slider("C parameter:", 0, 180);
+    }
+    if (shader_name == "fractal") {
+        iterations_slider = create_slider("Iterations:", 0, 30, 1, 10);
+    }
 
     connect(this, &Window::fpsUpdated, [fpsLabel](double fps) {
         fpsLabel->setText(QString("FPS: %1").arg(fps, 0, 'f', 0));
@@ -51,7 +59,7 @@ void Window::onInit()
     // Configure shaders
     program_ = std::make_unique<QOpenGLShaderProgram>(this);
     program_->addShaderFromSourceFile(QOpenGLShader::Vertex, ":/shaders/template.vs");
-    program_->addShaderFromSourceFile(QOpenGLShader::Fragment, ":/shaders/template.fs");
+    program_->addShaderFromSourceFile(QOpenGLShader::Fragment, ":/shaders/" + shader_name + ".fs");
     if (!program_->link()) {
         qDebug() << "Ошибка линковки:" << program_->log();
     }
@@ -61,9 +69,14 @@ void Window::onInit()
     mvpUniform_ = program_->uniformLocation("mvp");
     show_size_uniform = program_->uniformLocation("show_size");
     shift_uniform = program_->uniformLocation("shift");
+    resolution_uniform = program_->uniformLocation("resolution");
+
+    // func uniforms
     params_uniform = program_->uniformLocation("params");  
     boldness_uniform = program_->uniformLocation("boldness");
-    resolution_uniform = program_->uniformLocation("resolution");
+
+    // fractal uniforms
+    iterations_uniform = program_->uniformLocation("iterations");
 
     // Create VAO object
     vao_.create();
@@ -120,14 +133,22 @@ void Window::onRender()
     program_->setUniformValue(mvpUniform_, mvp);
     program_->setUniformValue(show_size_uniform, QVector2D(show_size_x, show_size_y));
     program_->setUniformValue(shift_uniform, QVector2D(shift_x, shift_y));
-    auto params = QVector3D(
-        get_slider_value(param_a_slider),
-        get_slider_value(param_b_slider),
-        get_slider_value(param_c_slider)
-    );
-    program_->setUniformValue(params_uniform, params);
-    program_->setUniformValue(boldness_uniform, get_slider_value(boldness_slider));
     program_->setUniformValue(resolution_uniform, QVector2D(width(), height()));
+
+    if (shader_name == "func") {
+        auto params = QVector3D(
+            get_slider_value(param_a_slider),
+            get_slider_value(param_b_slider),
+            get_slider_value(param_c_slider)
+        );
+        program_->setUniformValue(params_uniform, params);
+        program_->setUniformValue(boldness_uniform, get_slider_value(boldness_slider));
+    }
+    if (shader_name == "fractal") {
+        // update fractal params
+        program_->setUniformValue(iterations_uniform, iterations_slider->value());
+    }
+
 
     // Bind VAO
     vao_.bind();
@@ -202,7 +223,7 @@ void Window::recalc_show_y() {
     show_size_y = show_size_x * size().height() / size().width();
 }
 
-QSlider* Window::create_slider(const std::string& label, int pos_x, int pos_y) {
+QSlider* Window::create_slider(const std::string& label, int pos_x, int pos_y, float min, float max) {
     auto* l = new QLabel(label.c_str(), this);
     l->setStyleSheet("QLabel { color: white; }");
     l->setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -213,8 +234,8 @@ QSlider* Window::create_slider(const std::string& label, int pos_x, int pos_y) {
     auto *slider = new QSlider(Qt::Horizontal, this);
     slider->resize(100, 30);
     slider->move(pos_x, pos_y + 15);
-    slider->setRange(0, 100);
-    slider->setValue(50);
+    slider->setRange(min, max);
+    slider->setValue(min + (max - min) / 2.);
     slider->show();
 
     return slider;

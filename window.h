@@ -10,6 +10,7 @@
 #include <QOpenGLVertexArrayObject>
 #include <QWindow>
 #include <QMouseEvent>
+#include <qobject.h>
 #include <qpoint.h>
 #include <QSlider>
 #include <qslider.h>
@@ -22,7 +23,7 @@ public:
     constexpr static float SCROLL_SPEED = 120;
     constexpr static float MIN_SHOW_X = 0.1;
 
-    Window();
+    Window(QString program = "func");
     ~Window();
 
     void onInit() override;
@@ -36,7 +37,7 @@ public:
 
 private:
     void recalc_show_y();
-    QSlider* create_slider(const std::string& label, int pos_x, int pos_y);
+    QSlider* create_slider(const std::string& label, int pos_x, int pos_y, float min = 0, float max = 100);
     float get_slider_value(QSlider* slider, float min = 0, float max = 100);
     
     QElapsedTimer timer_;
@@ -47,10 +48,13 @@ private:
     bool mouse_pressed = false;
     QPoint last_mouse_pos;
 
+    QString shader_name;
+
     QSlider* boldness_slider;
     QSlider* param_a_slider;
     QSlider* param_b_slider;
     QSlider* param_c_slider;
+    QSlider* iterations_slider;
 
     GLint mvpUniform_ = -1;
     GLint show_size_uniform = -1;
@@ -58,6 +62,7 @@ private:
     GLint params_uniform = -1;
     GLint boldness_uniform = -1;
     GLint resolution_uniform = -1;
+    GLint iterations_uniform = -1;
 
     QMatrix4x4 model_;
     QMatrix4x4 view_;

@@ -2,6 +2,8 @@
 
 #include <QApplication>
 #include <QSurfaceFormat>
+#include <iostream>
+#include <qobject.h>
 
 constexpr auto g_sampels = 16;
 constexpr auto g_gl_major_version = 3;
@@ -20,7 +22,17 @@ int main(int argc, char *argv[])
     format.setProfile(QSurfaceFormat::CoreProfile);
     QSurfaceFormat::setDefaultFormat(format);
 
-    Window window;
+    QString program = "func";
+    if (a.arguments().size() > 1) {
+        program = a.arguments()[1];
+    }
+
+    if (program != "func" && program != "fractal") {
+        std::cerr << "invalid program name, it should be either func or fractal" << std::endl;
+        return 1;
+    }
+
+    Window window(program);
     window.resize(640, 480);
     window.show();
 

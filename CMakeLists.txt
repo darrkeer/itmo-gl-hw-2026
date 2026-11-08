@@ -23,7 +23,8 @@ set(PROJECT_SOURCES
 add_executable(itmo-gl-hw-2026
     ${PROJECT_SOURCES}
     resources.qrc
-    shaders/template.fs
+    shaders/func.fs
+    shaders/fractal.fs
     shaders/template.vs
     openglwidget.h openglwidget.cpp
 )
